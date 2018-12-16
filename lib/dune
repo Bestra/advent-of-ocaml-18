@@ -1,5 +1,5 @@
 (library
   (inline_tests)
-  (libraries core)
+  (libraries core angstrom)
   (preprocess (pps ppx_jane))
   (name lib))
