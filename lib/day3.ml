@@ -41,26 +41,47 @@ module Claim = struct
 
   let to_sexp c = sexp_of_t c
 
+  let all_claimed_coords c =
+    let xo, yo = c.origin in
+    let w, h = c.size in
+    let xs = List.range xo (xo + w) in
+    let ys = List.range yo (yo + h) in
+    let rec inner_loop outer inner_list accum =
+      match inner_list with
+      | [] -> accum
+      | hd :: tl ->
+          let next = (outer, hd) in
+          inner_loop outer tl (next :: accum)
+    in
+    let rec outer_loop outer_list inner_list accum =
+      match outer_list with
+      | [] -> accum
+      | hd :: tl ->
+          let next = inner_loop hd inner_list accum in
+          outer_loop tl inner_list next
+    in
+    outer_loop xs ys []
+
   (* a list of all coordinates taken up by the claim *)
-  let claimed_coords c =
-    let width, height = c.size in
-    [c.origin]
 end
 
 let%expect_test _ =
   Claim.of_string "#2 @ 1,3: 4x4"
   |> Claim.to_sexp |> Sexp.to_string |> Stdio.print_endline ;
   [%expect {|
-  ((id 2)(coords(1 3))(size(4 4)))
+  ((id 2)(origin(1 3))(size(4 4)))
   |}]
 
 let recordOccurence map (claim : Claim.t) =
-  match Map.find map claim.origin with
-  | None ->
-      let empty_set = Set.empty (module Int) in
-      Map.set map ~key:claim.origin ~data:(Set.add empty_set claim.id)
-  | Some claim_ids ->
-      Map.set map ~key:claim.origin ~data:(Set.add claim_ids claim.id)
+  let loop m coords =
+    match Map.find m coords with
+    | None ->
+        let empty_set = Set.empty (module Int) in
+        Map.set m ~key:coords ~data:(Set.add empty_set claim.id)
+    | Some claim_ids ->
+        Map.set m ~key:coords ~data:(Set.add claim_ids claim.id)
+  in
+  List.fold (Claim.all_claimed_coords claim) ~init:map ~f:loop
 
 let claimed_squares claim_strings =
   let coords = Map.empty (module Coordinate) in
@@ -71,9 +92,13 @@ let multiple_claims claim_map =
   Map.filter claim_map ~f:(fun claims -> Set.length claims > 1)
   |> Map.keys |> List.length
 
+let duplicate_count s = s |> claimed_squares |> multiple_claims
+
 let%expect_test _ =
   let claims = ["#1 @ 1,3: 4x4"; "#2 @ 3,1: 4x4"; "#3 @ 5,5: 2x2"] in
   let multi_count = claimed_squares claims |> multiple_claims in
   printf "%i\n" multi_count ; [%expect {|
   4
   |}]
+
+let part1 () = read_file () |> claimed_squares |> multiple_claims
