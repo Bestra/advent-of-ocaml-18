@@ -87,13 +87,13 @@ let multiple_claims app_state =
   |> Map.keys |> List.length
 
 let overlapping_claim_ids app_state =
-  let candidates = Map.filter app_state.claim_map ~f:(fun claims -> Set.length claims > 1) in
-  Map.fold ~init:(Set.empty (module Int)) ~f:(fun ~key ~data set ->
-    key |> ignore;
-    Set.union set data
-  ) candidates
-
-  
+  let candidates =
+    Map.filter app_state.claim_map ~f:(fun claims -> Set.length claims > 1)
+  in
+  Map.fold
+    ~init:(Set.empty (module Int))
+    ~f:(fun ~key ~data set -> key |> ignore ; Set.union set data)
+    candidates
 
 let%expect_test _ =
   let claims = ["#1 @ 1,3: 4x4"; "#2 @ 3,1: 4x4"; "#3 @ 5,5: 2x2"] in
@@ -108,19 +108,21 @@ type int_set = Set.M(Int).t [@@deriving sexp]
 
 let intact_claim app =
   let overlappers = overlapping_claim_ids app in
-  let all_claim_ids = List.fold app.claims ~init:(Set.empty (module Int)) ~f:(fun acc claim ->
-    Set.add acc claim.id
-  ) in
-
+  let all_claim_ids =
+    List.fold app.claims
+      ~init:(Set.empty (module Int))
+      ~f:(fun acc claim -> Set.add acc claim.id)
+  in
   Set.diff all_claim_ids overlappers
 
 let%expect_test _ =
   let claims = ["#1 @ 1,3: 4x4"; "#2 @ 3,1: 4x4"; "#3 @ 5,5: 2x2"] in
-  parse_claims claims |>
-  intact_claim |> sexp_of_int_set |> Sexp.to_string |> Stdio.print_endline ;
+  parse_claims claims |> intact_claim |> sexp_of_int_set |> Sexp.to_string
+  |> Stdio.print_endline ;
   [%expect {|
   (3)
   |}]
 
-let part2 () = 
-  read_file () |> parse_claims |> intact_claim  |> sexp_of_int_set |> Sexp.to_string
+let part2 () =
+  read_file () |> parse_claims |> intact_claim |> sexp_of_int_set
+  |> Sexp.to_string
