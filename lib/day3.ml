@@ -41,26 +41,17 @@ module Claim = struct
 
   let to_sexp c = sexp_of_t c
 
+  let nested_fold outer inner accum f =
+    List.fold ~init:accum
+      ~f:(fun a' o -> List.fold ~init:a' ~f:(fun a'' i -> f a'' o i) inner)
+      outer
+
   let all_claimed_coords c =
     let xo, yo = c.origin in
     let w, h = c.size in
     let xs = List.range xo (xo + w) in
     let ys = List.range yo (yo + h) in
-    let rec inner_loop outer inner_list accum =
-      match inner_list with
-      | [] -> accum
-      | hd :: tl ->
-          let next = (outer, hd) in
-          inner_loop outer tl (next :: accum)
-    in
-    let rec outer_loop outer_list inner_list accum =
-      match outer_list with
-      | [] -> accum
-      | hd :: tl ->
-          let next = inner_loop hd inner_list accum in
-          outer_loop tl inner_list next
-    in
-    outer_loop xs ys []
+    nested_fold xs ys [] (fun accum x y -> (x, y) :: accum)
 
   (* a list of all coordinates taken up by the claim *)
 end
