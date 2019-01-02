@@ -133,13 +133,7 @@ let%expect_test _ =
  ((date 1518-11-01) (guard 10) (asleep ((30 54) (5 24)))))
 |}]
 
-let foo () =
-  List.map sample_input ~f:ShiftEntry.of_string
-  |> List.sort ~compare:ShiftEntry.compare
-  |> shifts_of_entries
-  |> List.map ~f:(fun e -> (e.guard, Shift.minutes_asleep e))
-
-let bar () =
+let sorted_asleep_times () =
   List.map sample_input ~f:ShiftEntry.of_string
   |> List.sort ~compare:ShiftEntry.compare
   |> shifts_of_entries
@@ -147,13 +141,14 @@ let bar () =
   |> Map.of_alist_reduce (module Int) ~f:(fun a b -> a + b)
   |> Map.to_alist
   |> List.sort ~compare:(fun (_, a) (_, b) -> Int.compare a b)
+  |> List.rev
 
 type int_tuple = int * int [@@deriving sexp]
 
 let%expect_test _ =
-  bar ()
+  sorted_asleep_times ()
   |> List.sexp_of_t sexp_of_int_tuple
   |> Sexp.to_string_hum |> Stdio.print_endline ;
   [%expect {|
- "foo"
+ ((10 50) (99 30))
 |}]
