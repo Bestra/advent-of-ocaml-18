@@ -76,20 +76,33 @@ module Shift = struct
 
   type minute = int
 
-  type t = {date: Date.t; guard: int; asleep: Interval.Int.t list}
+  type t =
+    { date: Date.t
+    ; guard: int
+    ; asleep: Interval.Int.t list
+    ; minutes: guard_state array }
   [@@deriving sexp]
 
-  let minutes_asleep t =
+  (* let minutes_asleep t =
     List.fold t.asleep ~init:0 ~f:(fun total i ->
         let a, b = Interval.Int.bounds_exn i in
         let minutes = b - a + 1 in
-        total + minutes )
+        total + minutes ) *)
+
+  let minutes_asleep t =
+    Array.fold t.minutes ~init:0 ~f:(fun total i ->
+        match i with Awake -> total | Asleep -> total + 1 )
 end
 
 exception Improper_entry of string
 
 let shifts_of_entries (all_entries : ShiftEntry.t list) =
-  let new_shift i e = {Shift.guard= i; date= e.ShiftEntry.date; asleep= []} in
+  let new_shift i e =
+    { Shift.guard= i
+    ; date= e.ShiftEntry.date
+    ; asleep= []
+    ; minutes= Array.create ~len:60 Shift.Awake }
+  in
   let rec go entries fell_asleep_at current_shift shifts =
     match entries with
     | [] -> current_shift :: shifts
@@ -105,6 +118,9 @@ let shifts_of_entries (all_entries : ShiftEntry.t list) =
           let sleep_interval =
             Interval.Int.create fell_asleep_at (current_entry.minutes - 1)
           in
+          Array.fill current_shift.minutes ~pos:fell_asleep_at
+            ~len:(current_entry.minutes - fell_asleep_at)
+            Asleep ;
           go other_entries 0
             {current_shift with asleep= sleep_interval :: current_shift.asleep}
             shifts )
@@ -125,18 +141,52 @@ let%expect_test _ =
   sample_shifts ()
   |> List.sexp_of_t Shift.sexp_of_t
   |> Sexp.to_string_hum |> Stdio.print_endline ;
-  [%expect {|
-(((date 1518-11-05) (guard 99) (asleep ((45 54))))
- ((date 1518-11-04) (guard 99) (asleep ((36 45))))
- ((date 1518-11-03) (guard 10) (asleep ((24 28))))
- ((date 1518-11-01) (guard 99) (asleep ((40 49))))
- ((date 1518-11-01) (guard 10) (asleep ((30 54) (5 24)))))
+  [%expect
+    {|
+(((date 1518-11-05) (guard 99) (asleep ((45 54)))
+  (minutes
+   (Awake Awake Awake Awake Awake Awake Awake Awake Awake Awake Awake Awake
+    Awake Awake Awake Awake Awake Awake Awake Awake Awake Awake Awake Awake
+    Awake Awake Awake Awake Awake Awake Awake Awake Awake Awake Awake Awake
+    Awake Awake Awake Awake Awake Awake Awake Awake Awake Asleep Asleep
+    Asleep Asleep Asleep Asleep Asleep Asleep Asleep Asleep Awake Awake Awake
+    Awake Awake)))
+ ((date 1518-11-04) (guard 99) (asleep ((36 45)))
+  (minutes
+   (Awake Awake Awake Awake Awake Awake Awake Awake Awake Awake Awake Awake
+    Awake Awake Awake Awake Awake Awake Awake Awake Awake Awake Awake Awake
+    Awake Awake Awake Awake Awake Awake Awake Awake Awake Awake Awake Awake
+    Asleep Asleep Asleep Asleep Asleep Asleep Asleep Asleep Asleep Asleep
+    Awake Awake Awake Awake Awake Awake Awake Awake Awake Awake Awake Awake
+    Awake Awake)))
+ ((date 1518-11-03) (guard 10) (asleep ((24 28)))
+  (minutes
+   (Awake Awake Awake Awake Awake Awake Awake Awake Awake Awake Awake Awake
+    Awake Awake Awake Awake Awake Awake Awake Awake Awake Awake Awake Awake
+    Asleep Asleep Asleep Asleep Asleep Awake Awake Awake Awake Awake Awake
+    Awake Awake Awake Awake Awake Awake Awake Awake Awake Awake Awake Awake
+    Awake Awake Awake Awake Awake Awake Awake Awake Awake Awake Awake Awake
+    Awake)))
+ ((date 1518-11-01) (guard 99) (asleep ((40 49)))
+  (minutes
+   (Awake Awake Awake Awake Awake Awake Awake Awake Awake Awake Awake Awake
+    Awake Awake Awake Awake Awake Awake Awake Awake Awake Awake Awake Awake
+    Awake Awake Awake Awake Awake Awake Awake Awake Awake Awake Awake Awake
+    Awake Awake Awake Awake Asleep Asleep Asleep Asleep Asleep Asleep Asleep
+    Asleep Asleep Asleep Awake Awake Awake Awake Awake Awake Awake Awake
+    Awake Awake)))
+ ((date 1518-11-01) (guard 10) (asleep ((30 54) (5 24)))
+  (minutes
+   (Awake Awake Awake Awake Awake Asleep Asleep Asleep Asleep Asleep Asleep
+    Asleep Asleep Asleep Asleep Asleep Asleep Asleep Asleep Asleep Asleep
+    Asleep Asleep Asleep Asleep Awake Awake Awake Awake Awake Asleep Asleep
+    Asleep Asleep Asleep Asleep Asleep Asleep Asleep Asleep Asleep Asleep
+    Asleep Asleep Asleep Asleep Asleep Asleep Asleep Asleep Asleep Asleep
+    Asleep Asleep Asleep Awake Awake Awake Awake Awake))))
 |}]
 
-let sorted_asleep_times () =
-  List.map sample_input ~f:ShiftEntry.of_string
-  |> List.sort ~compare:ShiftEntry.compare
-  |> shifts_of_entries
+let sorted_asleep_times (shifts : Shift.t list) =
+  shifts
   |> List.map ~f:(fun e -> (e.guard, Shift.minutes_asleep e))
   |> Map.of_alist_reduce (module Int) ~f:(fun a b -> a + b)
   |> Map.to_alist
@@ -145,10 +195,45 @@ let sorted_asleep_times () =
 
 type int_tuple = int * int [@@deriving sexp]
 
+let sleepy_guard shifts =
+  let sleepiest, _ = sorted_asleep_times shifts |> List.hd_exn in
+  sleepiest
+
 let%expect_test _ =
-  sorted_asleep_times ()
+  sorted_asleep_times (sample_shifts ())
   |> List.sexp_of_t sexp_of_int_tuple
   |> Sexp.to_string_hum |> Stdio.print_endline ;
   [%expect {|
  ((10 50) (99 30))
 |}]
+
+let array_sum a b = Array.map2_exn a b ~f:( + )
+
+let max_sleep_count_minute guard_id shifts =
+  let minutes =
+    List.filter_map
+      ~f:(fun k ->
+        if k.Shift.guard = guard_id then
+          Some (Array.map k.minutes ~f:(function Awake -> 0 | Asleep -> 1))
+        else None )
+      shifts
+  in
+  let arr =
+    List.reduce_exn ~f:array_sum minutes |> Array.mapi ~f:(fun i a -> (i, a))
+  in
+  Array.sort
+    ~compare:(fun a b ->
+      let _, x = a in
+      let _, y = b in
+      Int.compare y x )
+    arr ;
+  arr.(0)
+
+let%expect_test _ =
+  let shifts = sample_shifts () in
+  let g = sleepy_guard shifts in
+  max_sleep_count_minute g shifts
+  |> sexp_of_int_tuple |> Sexp.to_string |> Stdio.print_endline ;
+  [%expect {|
+  (24 2)
+  |}]
