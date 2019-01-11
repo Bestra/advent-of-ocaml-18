@@ -4,10 +4,6 @@ open Base
 
 let read_file () = In_channel.read_lines "./inputs/4.txt"
 
-let part1 () = "foo"
-
-let part2 () = "foo"
-
 let sample_input =
   [ "[1518-11-01 00:00] Guard #10 begins shift"
   ; "[1518-11-01 00:05] falls asleep"
@@ -69,6 +65,8 @@ module ShiftEntry = struct
     entry
 
   let of_string s : t = parse_string parser s |> Result.ok_or_failwith
+  let to_string (t: t): string =
+    Printf.sprintf "[%s %i] %s" (Date.to_string t.date) t.minutes (sexp_of_event t.event |> Sexp.to_string)
 end
 
 module Shift = struct
@@ -92,6 +90,10 @@ module Shift = struct
   let minutes_asleep t =
     Array.fold t.minutes ~init:0 ~f:(fun total i ->
         match i with Awake -> total | Asleep -> total + 1 )
+
+  let to_chart_string t =
+    let mins = Array.map t.minutes ~f:(function Awake -> 0 | Asleep -> 1) in
+    Printf.sprintf "%s %i %i %s" (Date.to_string t.date) t.guard (minutes_asleep t) (sexp_of_array sexp_of_int mins|> Sexp.to_string)
 end
 
 exception Improper_entry of string
@@ -113,7 +115,7 @@ let shifts_of_entries (all_entries : ShiftEntry.t list) =
             (new_shift i current_entry)
             (current_shift :: shifts)
       | FallsAsleep ->
-          go other_entries current_entry.minutes current_shift shifts
+          go other_entries current_entry.minutes {current_shift with date= current_entry.date} shifts
       | WakesUp ->
           let sleep_interval =
             Interval.Int.create fell_asleep_at (current_entry.minutes - 1)
@@ -136,6 +138,22 @@ let sample_shifts () =
   List.map sample_input ~f:ShiftEntry.of_string
   |> List.sort ~compare:ShiftEntry.compare
   |> shifts_of_entries
+
+let real_shifts () =
+  List.map (read_file ()) ~f:ShiftEntry.of_string
+  |> List.sort ~compare:ShiftEntry.compare
+  |> shifts_of_entries
+
+let print_entries input =
+  List.map input ~f:ShiftEntry.of_string
+  |> List.sort ~compare:ShiftEntry.compare
+  |> List.iter ~f:(fun i -> ShiftEntry.to_string i |> Stdio.print_endline)
+ 
+let print_shifts input =
+  List.map input ~f:ShiftEntry.of_string
+  |> List.sort ~compare:ShiftEntry.compare
+  |> shifts_of_entries
+  |> List.iter ~f:(fun i -> Shift.to_chart_string i |> Stdio.print_endline)
 
 let%expect_test _ =
   sample_shifts ()
@@ -227,7 +245,8 @@ let max_sleep_count_minute guard_id shifts =
       let _, y = b in
       Int.compare y x )
     arr ;
-  arr.(0)
+  let (minute, _) = arr.(0) in
+  (minute, guard_id)
 
 let%expect_test _ =
   let shifts = sample_shifts () in
@@ -235,5 +254,13 @@ let%expect_test _ =
   max_sleep_count_minute g shifts
   |> sexp_of_int_tuple |> Sexp.to_string |> Stdio.print_endline ;
   [%expect {|
-  (24 2)
+  (24 10)
   |}]
+
+let part1 () =
+  let shifts = real_shifts () in
+  let g = sleepy_guard shifts in
+  max_sleep_count_minute g shifts
+  |> sexp_of_int_tuple |> Sexp.to_string
+
+let part2 () = "foo"
