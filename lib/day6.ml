@@ -40,12 +40,12 @@ module Grid = struct
     let out = dr + dc in
     out
 
-  let nearest_input x y inputs =
-    let k =
-      List.map inputs ~f:(fun j -> (j.label, get_distance j x y))
-      |> List.sort ~compare:(fun (_, d1) (_, d2) -> Int.compare d1 d2)
-    in
-    match k with
+  let input_distances c r inputs =
+    List.map inputs ~f:(fun j -> (j.label, get_distance j c r))
+    |> List.sort ~compare:(fun (_, d1) (_, d2) -> Int.compare d1 d2)
+
+  let nearest_input c r inputs =
+    match input_distances c r inputs with
     | (i1, d1) :: (_, d2) :: _ -> if d1 = d2 then Tie else Input (i1, d1)
     | hd :: _ -> Input hd
     | [] -> failwith "Empty list of inputs"
@@ -90,6 +90,15 @@ module Grid = struct
            match group_type v with Interior -> true | Exterior -> false )
     |> Map.map ~f:(fun v -> List.length v)
 
+  let safe_region_size max_distance g =
+    List.filter_map g.points ~f:(fun p ->
+        let total =
+          input_distances p.c p.r g.inputs
+          |> List.fold ~init:0 ~f:(fun sum (_label, dist) -> sum + dist)
+        in
+        if total < max_distance then Some total else None )
+    |> List.length
+
   let to_string g =
     let point_strings =
       List.map g.points ~f:(fun x ->
@@ -110,10 +119,13 @@ end
 let read_file () = In_channel.read_lines "./inputs/6.txt"
 
 let part1 () =
-  let sample_input = read_file () in
-  (* let sample_input = ["1, 1"; "3, 3"] in *)
-  Grid.make sample_input |> Grid.interior_groups |> sexp_of_char_int_map
+  read_file () |> Grid.make |> Grid.interior_groups |> sexp_of_char_int_map
   |> Sexp.to_string_hum
+
+let part2 () =
+  read_file () |> Grid.make
+  |> Grid.safe_region_size 10000
+  |> Int.sexp_of_t |> Sexp.to_string
 
 let%expect_test _ =
   let sample_input = ["1, 1"; "1, 6"; "8, 3"; "3, 4"; "5, 5"; "8, 9"] in
@@ -141,4 +153,13 @@ let%expect_test _ =
   |> Sexp.to_string_hum |> Stdio.print_endline ;
   [%expect {|
     ((d 9) (e 17))
+|}]
+
+let%expect_test _ =
+  let sample_input = ["1, 1"; "1, 6"; "8, 3"; "3, 4"; "5, 5"; "8, 9"] in
+  (* let sample_input = ["1, 1"; "3, 3"] in *)
+  Grid.make sample_input |> Grid.safe_region_size 32 |> Int.sexp_of_t
+  |> Sexp.to_string |> Stdio.print_endline ;
+  [%expect {|
+    16
 |}]
