@@ -19,13 +19,13 @@ module Dag = struct
     let parent, child = e in
     let m1 =
       Map.update dag parent ~f:(function
-          | None -> {empty_node with outs= [child]}
-          | Some n -> {n with outs= child :: n.outs} )
+        | None -> {empty_node with outs= [child]}
+        | Some n -> {n with outs= child :: n.outs} )
     in
     Map.update m1 child ~f:(function
-        | None -> {empty_node with ins= [parent]}
-        | Some n -> {n with ins= parent :: n.ins} )
-  
+      | None -> {empty_node with ins= [parent]}
+      | Some n -> {n with ins= parent :: n.ins} )
+
   let children dag node =
     let n = Map.find_exn dag node in
     List.sort ~compare:Char.compare n.outs
@@ -34,22 +34,39 @@ module Dag = struct
     s |> List.map ~f:edge_of_string
     |> List.fold ~init:(Map.empty (module Char)) ~f:add_edge
 
-  type in_degree = (char * int) [@@deriving sexp]
+  module Degrees = struct
+    type list_t = char * int [@@deriving sexp]
 
-  let in_degrees dag =
-    let in_degree dag n =
-      match Map.find dag n with Some i -> List.length i.ins | None -> 0
+    type t = int Map.M(Char).t
+
+    let compare (n1, d1) (n2, d2) =
+      match Int.compare d1 d2 with 0 -> Char.compare n1 n2 | l -> l
+
+    let of_dag dag =
+      let in_degree dag n =
+        match Map.find dag n with Some i -> List.length i.ins | None -> 0
+      in
+      Map.keys dag
+      |> List.map ~f:(fun k -> (k, in_degree dag k))
+      |> List.sort ~compare
+      |> Map.of_alist_exn (module Char)
+
+    let sorted_list t = Map.to_alist t |> List.sort ~compare
+  end
+
+  let topo_sort (edges : t) (degrees : Degrees.t) =
+    let decrement_children node degree_map =
+      let kids = children edges node in
+      List.fold kids ~init:degree_map ~f:(fun m kid ->
+          Map.update m kid ~f:(function None -> 0 | Some i -> i - 1) )
     in
+    "Foo"
 
-    Map.keys dag
-    |> List.map ~f:(fun k -> (k, in_degree dag k))
-    |> List.sort ~compare:(fun (n1, d1) (n2, d2) ->
-      match Int.compare d1 d2 with
-      | 0 -> Char.compare n1 n2
-      | l -> l
-    )
-
-  let topo_sort (degrees: in_degree list)
+  (* let rec go out degree_map zero_queue =
+      match zero_queue with
+      | [] -> out
+      | hd :: tl ->  *)
+  (* subtract one from all the degrees of hd's children.  if any of them append them to the queue *)
 
   let dot_of_edges (t : t) accessor =
     let node_to_string i o =
@@ -118,10 +135,8 @@ let%expect_test _ =
 let%expect_test _ =
   sample_input |> Dag.of_input_list |> Dag.in_degrees
   |> List.sexp_of_t Dag.sexp_of_in_degree
-  |> Sexp.to_string_hum
-  |> Stdio.print_endline ;
-  [%expect
-    {|
+  |> Sexp.to_string_hum |> Stdio.print_endline ;
+  [%expect {|
   ((C 0) (K 0) (B 1) (D 1) (F 1) (A 2) (E 3))
 |}]
 
