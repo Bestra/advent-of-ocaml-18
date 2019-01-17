@@ -8,7 +8,9 @@ let () =
   Day2.part1 () |> printf "Day 2 part 1: %i \n" |> ignore ;
   Day3.part1 () |> printf "Day 3 part 1: %i \n" |> ignore ;
   Day3.part2 () |> printf "Day 3 part 2: %s \n" |> ignore ; *)
-  printf "Running day 6 1 \n" ;
+  (* printf "Running day 6 1 \n" ;
   Day6.part1 () |> printf "Day 6 part 1: %s \n" |> ignore ;
   printf "Running day 6 2 \n" ;
-  Day6.part2 () |> printf "Day 6 part 2: %s \n" |> ignore
+  Day6.part2 () |> printf "Day 6 part 2: %s \n" |> ignore *)
+  printf "Running day 7 1 \n" ;
+  Day7.part1 () |> printf "Day 7 part 1: %s \n" |> ignore
